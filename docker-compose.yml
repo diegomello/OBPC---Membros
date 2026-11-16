@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # 1. BANCO DE DADOS POSTGRESQL
+  # ===========================================================================
+  db:
+    image: postgres:15-alpine
+    container_name: igreja_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${DB_NAME:-igreja_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/src/database/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - igreja_network
+
+  # ===========================================================================
+  # 2. BACK-END (NODE.JS + EXPRESS + TYPESCRIPT)
+  # ===========================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: igreja_backend
+    restart: always
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgrespassword}
+      DB_NAME: ${DB_NAME:-igreja_db}
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_trocar_em_producao}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@igreja.org.br}
+    ports:
+      - "3001:3001"
+    volumes:
+      - photos_data:/app/uploads/photos
+    depends_on:
+      - db
+    networks:
+      - igreja_network
+
+  # ===========================================================================
+  # 3. FRONT-END (REACT + VITE + PWA COM NGINX)
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: igreja_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - igreja_network
+
+volumes:
+  pgdata:
+  photos_data:
+
+networks:
+  igreja_network:
+    driver: bridge

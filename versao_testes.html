@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OBPC Minas Gerais - Sistema de Gestão & Credenciais</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- QRCode.js Library para gerar QR Code Real -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    }
+    .glass-input {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+    .glass-input:focus {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: #34d399;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.4);
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #area-impressao, #area-impressao * { visibility: visible; }
+      #area-impressao { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 min-h-screen text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-emerald-500 selection:text-white">
+
+  <!-- Luzes de Fundo (Backdrop Glow Glass) -->
+  <div class="fixed top-0 left-10 w-96 h-96 bg-emerald-600/15 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="fixed bottom-10 right-10 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+  <!-- Faixa de Acesso Público ao Formulário de Membros (Visível para visitantes) -->
+  <div id="faixa-publica" class="bg-slate-900/95 backdrop-blur-md text-white text-xs px-4 py-2 text-center border-b border-white/10 flex items-center justify-center space-x-2 z-50">
+    <span class="text-slate-300">É membro da Convenção O Brasil Para Cristo (MG)?</span>
+    <button onclick="abrirFormularioPublico()" class="underline font-bold text-emerald-400 hover:text-emerald-300 ml-1 transition-colors">
+      Clique aqui para preencher o formulário de credencial (PWA)
+    </button>
+  </div>
+
+  <!-- Barra Superior de Navegação -->
+  <header class="sticky top-0 z-40 backdrop-blur-2xl bg-slate-950/70 border-b border-white/10 px-4 py-3 shadow-lg">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 rounded-2xl bg-white/95 p-1 flex items-center justify-center shadow-lg border border-white/30 flex-shrink-0">
+          <img src="image/logo.jpeg" alt="Logo OBPC" class="w-full h-full object-contain rounded-xl">
+        </div>
+        <div>
+          <h1 class="text-xs sm:text-sm font-black text-white leading-tight">Convenção das Igrejas Evangélicas Pentecostal</h1>
+          <p class="text-xs font-extrabold text-emerald-400 tracking-wide">O Brasil Para Cristo — Minas Gerais</p>
+        </div>
+      </div>
+
+      <!-- STATUS DO LOGIN: ANTES DO LOGIN -->
+      <div id="nav-deslogado" class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-slate-400 hidden sm:inline">Acesso Restrito à Secretaria</span>
+        <button onclick="trocarAba('validar')" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white/10 text-white hover:bg-white/15 border border-white/20 transition-all">
+          🔍 Validação Pública QR
+        </button>
+      </div>
+
+      <!-- MENU DO PAINEL: APENAS APÓS LOGIN COM SUCESSO -->
+      <div id="nav-logado" class="hidden flex items-center gap-2 flex-wrap">
+        <nav class="flex items-center gap-1.5 sm:gap-2">
+          <button onclick="trocarAba('dashboard')" id="btn-tab-dashboard" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition bg-blue-600/40 text-white border border-blue-400/40 shadow-sm backdrop-blur-md">
+            📊 Dashboard & Membros
+          </button>
+          <button onclick="trocarAba('credencial')" id="btn-tab-credencial" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-white/5 border border-transparent">
+            🪪 Cartão CR80 PVC
+          </button>
+          <button onclick="trocarAba('pwa')" id="btn-tab-pwa" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30 backdrop-blur-md">
+            Formulário Membros ↗
+          </button>
+          <button onclick="trocarAba('validar')" id="btn-tab-validar" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-white/5 border border-transparent">
+            Validador QR
+          </button>
+        </nav>
+
+        <div class="h-6 w-px bg-white/20 mx-1 hidden md:block"></div>
+
+        <div class="flex items-center space-x-3">
+          <div class="text-right hidden sm:block">
+            <div class="text-xs font-bold text-white">Administrador Geral</div>
+            <div class="text-[10px] text-emerald-400 font-bold">SECRETARIA ESTADUAL</div>
+          </div>
+          <button onclick="fazerLogout()" class="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 text-xs font-semibold transition backdrop-blur-md">
+            Sair
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 relative z-10 flex flex-col justify-center">
+
+    <!-- 1. TELA DE LOGIN (TELA INICIAL OBRIGATÓRIA) -->
+    <section id="view-login" class="w-full flex items-center justify-center py-6">
+      <div class="max-w-md w-full glass-panel rounded-3xl p-8 relative z-10 text-white shadow-2xl">
+        <div class="text-center mb-8">
+          <div class="w-24 h-24 mx-auto mb-4 p-2 rounded-2xl bg-white/95 border border-white/40 shadow-xl flex items-center justify-center overflow-hidden">
+            <img src="image/logo.jpeg" alt="Logo OBPC" class="w-full h-full object-contain rounded-xl">
+          </div>
+          <h2 class="text-xl font-black tracking-tight text-white leading-snug">
+            Convenção das Igrejas Evangélicas Pentecostal
+          </h2>
+          <p class="text-emerald-400 font-extrabold text-base tracking-wide mt-1">
+            O Brasil Para Cristo — Minas Gerais
+          </p>
+          <span class="inline-block mt-2.5 text-[11px] font-semibold text-blue-200 uppercase tracking-widest bg-blue-900/60 px-3.5 py-1 rounded-full border border-blue-400/30 shadow-inner">
+            Painel da Secretaria & Gestão
+          </span>
+        </div>
+
+        <!-- Mensagem de Erro Dinâmica -->
+        <div id="login-erro" class="hidden mb-4 p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-200 text-xs backdrop-blur-sm flex items-center gap-2">
+          <span>⚠️</span>
+          <span id="login-erro-txt">E-mail ou senha incorretos.</span>
+        </div>
+
+        <form onsubmit="fazerLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-blue-200 mb-1.5">
+              E-mail ou Usuário
+            </label>
+            <input type="email" required id="login-email" value="admin@igreja.org.br" placeholder="secretaria@obpc-mg.org.br" class="w-full px-4 py-3 rounded-xl glass-input text-sm">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-blue-200 mb-1.5">
+              Senha de Acesso
+            </label>
+            <input type="password" required id="login-senha" value="Admin@123456" placeholder="••••••••" class="w-full px-4 py-3 rounded-xl glass-input text-sm font-mono">
+          </div>
+
+          <button type="submit" id="btn-login-submit" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-700 via-blue-600 to-emerald-600 hover:from-blue-600 hover:to-emerald-500 text-white font-extrabold shadow-lg hover:shadow-emerald-500/25 transition-all text-sm border border-emerald-400/30">
+            Entrar no Sistema
+          </button>
+        </form>
+
+        <div class="mt-6 pt-5 border-t border-white/10 text-center">
+          <p class="text-[11px] text-blue-300/80">
+            Segurança com criptografia, controle de permissões e LGPD.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. DASHBOARD DE MEMBROS (LIBERADO APÓS LOGIN) -->
+    <section id="view-dashboard" class="hidden w-full space-y-6">
+      <!-- 5 Cartões de Métricas Glass -->
+      <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="glass-panel p-5 rounded-2xl hover:bg-white/15 transition-all">
+          <span class="text-xs font-bold text-white/60 uppercase tracking-wider">Total Membros</span>
+          <div class="text-3xl font-black text-white mt-2">128</div>
+        </div>
+        <div class="glass-panel p-5 rounded-2xl bg-amber-500/15 border-amber-400/30 hover:bg-amber-500/20 transition-all">
+          <span class="text-xs font-bold text-amber-300 uppercase tracking-wider">Novos (Não Vistos)</span>
+          <div class="text-3xl font-black text-amber-300 mt-2">3</div>
+        </div>
+        <div class="glass-panel p-5 rounded-2xl bg-blue-500/15 border-blue-400/30 hover:bg-blue-500/20 transition-all">
+          <span class="text-xs font-bold text-blue-300 uppercase tracking-wider">Pendentes</span>
+          <div class="text-3xl font-black text-blue-300 mt-2">12</div>
+        </div>
+        <div class="glass-panel p-5 rounded-2xl bg-emerald-500/15 border-emerald-400/30 hover:bg-emerald-500/20 transition-all">
+          <span class="text-xs font-bold text-emerald-300 uppercase tracking-wider">Geradas</span>
+          <div class="text-3xl font-black text-emerald-300 mt-2">5</div>
+        </div>
+        <div class="glass-panel p-5 rounded-2xl bg-teal-500/15 border-teal-400/30 hover:bg-teal-500/20 transition-all">
+          <span class="text-xs font-bold text-teal-300 uppercase tracking-wider">Impressas</span>
+          <div class="text-3xl font-black text-teal-300 mt-2">111</div>
+        </div>
+      </div>
+
+      <!-- Tabela Glass com Ações -->
+      <div class="glass-panel p-6 rounded-3xl space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 class="text-xl font-bold text-white">Membros Cadastrados & Emissão de Credenciais</h3>
+            <p class="text-xs text-white/50">Convenção O Brasil Para Cristo - Estado de Minas Gerais</p>
+          </div>
+          <button onclick="trocarAba('credencial')" class="px-5 py-2.5 bg-gradient-to-r from-blue-700 via-blue-600 to-emerald-600 hover:from-blue-600 hover:to-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg border border-emerald-400/30 transition-all">
+            🪪 Ver Modelo de Cartão CR80
+          </button>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl">
+          <table class="w-full text-left text-sm text-white/80">
+            <thead class="bg-white/10 text-white/90 border-b border-white/15">
+              <tr>
+                <th class="py-3 px-4">Protocolo</th>
+                <th class="py-3 px-4">Nome do Titular</th>
+                <th class="py-3 px-4">Cargo Ministerial</th>
+                <th class="py-3 px-4">Congregação</th>
+                <th class="py-3 px-4">Status</th>
+                <th class="py-3 px-4 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-membros-corpo" class="divide-y divide-white/10">
+              <!-- Renderizado dinamicamente via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. CARTÃO CR80 PVC (OBPC) -->
+    <section id="view-credencial" class="hidden w-full flex flex-col items-center space-y-6">
+      <div class="text-center space-y-1">
+        <h2 class="text-2xl font-black text-white">Prévia da Credencial Oficial (Formato CR80 PVC)</h2>
+        <p class="text-xs text-emerald-400 font-bold">Proporção exata de Cartão PVC (85,6 x 54 mm) — Convenção O Brasil Para Cristo (MG)</p>
+      </div>
+
+      <div id="area-impressao" class="flex flex-col lg:flex-row gap-8 items-center justify-center">
+        <!-- FRENTE DO CARTÃO -->
+        <div class="w-[340px] h-[215px] rounded-2xl shadow-2xl overflow-hidden relative border border-slate-300 flex flex-col justify-between bg-white text-slate-800 flex-shrink-0" style="width: 85.6mm; height: 54mm;">
+          <!-- Cabeçalho Oficial OBPC -->
+          <div class="px-2.5 py-1 text-white flex items-center justify-between" style="background: linear-gradient(135deg, #00458a 0%, #005ea6 60%, #1e7e34 100%);">
+            <div class="flex items-center space-x-2">
+              <div class="w-7 h-7 rounded-full bg-white p-0.5 shadow-sm border border-white/50 flex items-center justify-center">
+                <img src="image/logo.jpeg" alt="Logo OBPC" class="w-full h-full object-contain rounded-full">
+              </div>
+              <div class="leading-tight">
+                <h4 class="text-[7.5px] font-black uppercase tracking-tight">Convenção das Igrejas Evangélicas Pentecostal</h4>
+                <p class="text-[7px] font-extrabold text-emerald-300 uppercase">O Brasil Para Cristo — Minas Gerais</p>
+                <span class="text-[6px] text-blue-100 uppercase tracking-widest block">Credencial Ministerial</span>
+              </div>
+            </div>
+            <span class="text-[7.5px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded text-white shadow-inner">
+              OFICIAL
+            </span>
+          </div>
+
+          <!-- Corpo Frente -->
+          <div class="flex-1 p-2.5 flex items-center space-x-3">
+            <div class="w-[20mm] h-[26mm] rounded-lg border border-slate-300 overflow-hidden bg-slate-100 flex-shrink-0 shadow-sm flex items-center justify-center">
+              <div class="w-full h-full bg-gradient-to-b from-blue-100 to-slate-200 flex flex-col items-center justify-center text-slate-500">
+                <span class="text-2xl">👤</span>
+                <span class="text-[7px] font-bold">FOTO 3x4</span>
+              </div>
+            </div>
+
+            <div>
+              <div>
+                <span class="text-[6.5px] font-bold text-slate-400 uppercase tracking-wider block">Nome do Titular</span>
+                <p id="card-frente-nome" class="font-black text-[10.5px] text-slate-900 truncate">Carlos Eduardo Silveira</p>
+              </div>
+              <div>
+                <span class="text-[6.5px] font-bold text-slate-400 uppercase tracking-wider block">Cargo Eclesiástico</span>
+                <p id="card-frente-cargo" class="font-extrabold text-blue-900">Pastor Evangelista</p>
+              </div>
+              <div class="grid grid-cols-2 gap-1 pt-0.5 text-[7.5px]">
+                <div>
+                  <span class="text-[6px] text-slate-400 uppercase block">Congregação</span>
+                  <p id="card-frente-cong" class="font-bold truncate">Sede Regional BH</p>
+                </div>
+                <div>
+                  <span class="text-[6px] text-slate-400 uppercase block">Região / Sup.</span>
+                  <p id="card-frente-sup" class="font-bold truncate">Metropolitana</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rodapé Frente -->
+          <div class="px-3 py-1 text-white flex justify-between text-[7px] font-bold" style="background: linear-gradient(90deg, #1e7e34 0%, #005ea6 100%);">
+            <span id="card-frente-batismo">Batismo: 15/05/2012</span>
+            <span class="text-emerald-200">Convenção Estadual - MG</span>
+            <span id="card-frente-validade">Validade: 15/11/2028</span>
+          </div>
+        </div>
+
+        <!-- VERSO DO CARTÃO -->
+        <div class="w-[340px] h-[215px] rounded-2xl shadow-2xl overflow-hidden relative border border-slate-300 flex flex-col justify-between bg-white text-slate-800 flex-shrink-0" style="width: 85.6mm; height: 54mm;">
+          <div class="p-2.5 flex-1 flex flex-col justify-between text-[8px] text-slate-700">
+            <div class="flex justify-between items-start">
+              <div class="space-y-1">
+                <div>
+                  <span class="text-[6.5px] text-slate-400 uppercase font-bold block">Data de Nascimento</span>
+                  <p id="card-verso-nasc" class="font-bold text-slate-900">22/08/1988</p>
+                </div>
+                <div>
+                  <span class="text-[6.5px] text-slate-400 uppercase font-bold block">Contato / WhatsApp</span>
+                  <p id="card-verso-tel" class="font-bold text-slate-900">(31) 98765-4321</p>
+                </div>
+                <div>
+                  <span class="text-[6.5px] text-slate-400 uppercase font-bold block">Localidade</span>
+                  <p id="card-verso-loc" class="font-bold text-slate-900">Belo Horizonte - MG</p>
+                </div>
+              </div>
+
+              <!-- QR Code Real e Funcional -->
+              <div class="text-center flex flex-col items-center">
+                <div id="qrcode-container" class="w-[20mm] h-[20mm] bg-white rounded p-1 flex items-center justify-center border border-slate-300 shadow-sm overflow-hidden">
+                  <!-- Gerado via Script / Imagem QR Real -->
+                </div>
+                <span class="text-[6px] text-slate-500 uppercase mt-0.5 font-extrabold tracking-wider">Validação Pública QR</span>
+                <span class="text-[5.5px] text-emerald-600 font-bold block">Aponte a câmera</span>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 p-1.5 rounded border border-slate-100 text-[6.5px] text-slate-600 text-center leading-normal">
+              Convenção das Igrejas Evangélicas Pentecostal O Brasil Para Cristo - Estado de Minas Gerais. Válida em território nacional.
+            </div>
+          </div>
+
+          <div id="card-verso-protocolo" class="bg-slate-900 text-white text-[7px] text-center py-1 font-mono tracking-wider font-bold">
+            PROTOCOLO: MEM-202611-OBPC-MG
+          </div>
+        </div>
+      </div>
+
+      <!-- Botão de Impressão -->
+      <div class="flex gap-4">
+        <button onclick="window.print()" class="px-6 py-3 bg-gradient-to-r from-blue-700 via-blue-600 to-emerald-600 hover:from-blue-600 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg border border-emerald-400/30 text-sm transition-all flex items-center gap-2">
+          🖨️ Testar Impressão (Frente e Verso)
+        </button>
+      </div>
+    </section>
+
+    <!-- 4. FORMULÁRIO PÚBLICO PWA -->
+    <section id="view-pwa" class="hidden w-full flex items-center justify-center py-4">
+      <div class="max-w-xl w-full glass-panel rounded-3xl shadow-2xl overflow-hidden text-white">
+        <!-- Cabeçalho PWA com Logo OBPC -->
+        <div class="p-6 border-b border-white/10 bg-slate-900/60 backdrop-blur-md flex items-center space-x-3">
+          <div class="w-14 h-14 rounded-2xl bg-white/95 p-1.5 flex items-center justify-center shadow-lg border border-white/30 flex-shrink-0">
+            <img src="image/logo.jpeg" alt="Logo OBPC" class="w-full h-full object-contain rounded-xl">
+          </div>
+          <div>
+            <h3 class="text-xs font-black text-white uppercase leading-snug">Convenção das Igrejas Evangélicas Pentecostal</h3>
+            <p class="text-sm font-extrabold text-emerald-400 uppercase tracking-wide">O Brasil Para Cristo — Minas Gerais</p>
+            <span class="text-[10px] text-blue-200 tracking-wider">Formulário Oficial de Credenciamento Pastoral & Membresia</span>
+          </div>
+        </div>
+
+        <form onsubmit="cadastrarNovoMembroPwa(event)" class="p-6 space-y-4">
+          <div>
+            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Formulário de Credenciamento</span>
+            <h4 class="text-lg font-bold text-white">Novo Membro / Ministro</h4>
+            <p class="text-xs text-slate-300">Preencha os dados abaixo para gerar a credencial oficial OBPC na sessão.</p>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Nome Completo *</label>
+              <input type="text" required id="pwa-nome" placeholder="Ex: Pastor José Ferreira da Silva" class="w-full px-4 py-2.5 rounded-xl glass-input text-sm">
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Data Nascimento *</label>
+                <input type="date" required id="pwa-nascimento" value="1982-04-10" class="w-full px-4 py-2.5 rounded-xl glass-input text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Data Batismo *</label>
+                <input type="date" required id="pwa-batismo" value="2005-08-19" class="w-full px-4 py-2.5 rounded-xl glass-input text-sm">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Cargo Ministerial *</label>
+                <select id="pwa-cargo" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/20 text-white text-sm">
+                  <option selected>Pastor Presidente</option>
+                  <option>Pastor Evangelista</option>
+                  <option>Presbítero</option>
+                  <option>Diácono / Diaconisa</option>
+                  <option>Missionário(a)</option>
+                  <option>Membro Ativo</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Telefone / WhatsApp *</label>
+                <input type="tel" required id="pwa-telefone" value="(31) 98555-1234" class="w-full px-4 py-2.5 rounded-xl glass-input text-sm">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Congregação Local *</label>
+                <input type="text" required id="pwa-congregacao" value="OBPC Central - Ipatinga" class="w-full px-4 py-2.5 rounded-xl glass-input text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Cidade / UF *</label>
+                <input type="text" required id="pwa-localidade" value="Ipatinga - MG" class="w-full px-4 py-2.5 rounded-xl glass-input text-sm">
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-3 pt-3">
+            <button type="button" onclick="voltarParaLogin()" id="btn-voltar-login-pwa" class="hidden px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition">
+              ← Voltar ao Login
+            </button>
+            <button type="submit" class="flex-1 py-3.5 bg-gradient-to-r from-blue-700 via-blue-600 to-emerald-600 hover:from-blue-600 hover:to-emerald-500 text-white font-bold rounded-xl shadow-lg border border-emerald-400/30 text-sm transition-all flex items-center justify-center gap-2">
+              ✓ Concluir Cadastro e Emitir Credencial
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 5. VALIDAÇÃO QR CODE (PÚBLICA) -->
+    <section id="view-validar" class="hidden w-full flex items-center justify-center py-6">
+      <div class="max-w-md w-full glass-panel rounded-3xl p-8 shadow-2xl text-center space-y-4 text-white border border-emerald-400/30">
+        <div class="w-20 h-20 mx-auto rounded-2xl bg-white/95 p-1.5 flex items-center justify-center shadow-lg border border-white/30">
+          <img src="image/logo.jpeg" alt="Logo OBPC" class="w-full h-full object-contain rounded-xl">
+        </div>
+        <div>
+          <h3 class="text-xs text-white/70 font-bold uppercase tracking-tight">Convenção das Igrejas Evangélicas Pentecostal</h3>
+          <p class="text-sm text-emerald-400 font-extrabold tracking-wide">O Brasil Para Cristo — Minas Gerais</p>
+        </div>
+
+        <div>
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+            ✓ Documento Autêntico e Regular
+          </span>
+          <p class="text-xs text-white/50 mt-1">Consulta Pública de Autenticidade em Tempo Real</p>
+        </div>
+
+        <div class="glass-panel p-4 rounded-2xl text-left text-xs space-y-2 border-white/10">
+          <div>
+            <span class="text-white/40 block text-[10px] uppercase font-bold">Titular da Credencial</span>
+            <p class="font-extrabold text-sm text-white">Carlos Eduardo Silveira</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <span class="text-white/40 block text-[10px] uppercase font-bold">Cargo</span>
+              <p class="font-bold text-emerald-400">Pastor Evangelista</p>
+            </div>
+            <div>
+              <span class="text-white/40 block text-[10px] uppercase font-bold">Validade</span>
+              <p class="font-bold text-white">15/11/2028 (Ativa)</p>
+            </div>
+          </div>
+          <div>
+            <span class="text-white/40 block text-[10px] uppercase font-bold">Congregação</span>
+            <p class="font-bold text-white">Sede Central - Belo Horizonte / MG</p>
+          </div>
+        </div>
+
+        <p class="text-[10px] text-white/40">Registro auditado na base oficial OBPC-MG sob o protocolo MEM-202611-8F21.</p>
+        
+        <div id="btn-voltar-login-val" class="pt-2">
+          <button onclick="voltarParaLogin()" class="text-xs text-blue-300 hover:text-white underline">
+            ← Voltar para o Acesso Restrito
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Rodapé -->
+  <footer class="backdrop-blur-md bg-slate-950/60 border-t border-white/10 py-3 text-center text-xs text-white/40">
+    Ambiente Oficial — Convenção O Brasil Para Cristo (MG)
+  </footer>
+
+  <script>
+    let usuarioAutenticado = false;
+    const abas = ['login', 'dashboard', 'credencial', 'pwa', 'validar'];
+
+    // Lista de Membros Cadastrados para Teste Dinâmico
+    const listaMembros = [
+      {
+        id: '1',
+        protocolo: 'MEM-202611-8F21',
+        nome: 'Carlos Eduardo Silveira',
+        cargo: 'Pastor Evangelista',
+        congregacao: 'Sede Central - BH',
+        superintendencia: 'Região Metropolitana',
+        nascimento: '22/08/1988',
+        batismo: '15/05/2012',
+        telefone: '(31) 98765-4321',
+        localidade: 'Belo Horizonte - MG',
+        validade: '15/11/2028',
+        status: 'PENDENTE',
+        corStatus: 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+      },
+      {
+        id: '2',
+        protocolo: 'MEM-202611-9C42',
+        nome: 'Ana Paula Magalhães',
+        cargo: 'Diaconisa',
+        congregacao: 'Betim Central',
+        superintendencia: 'Região Metropolitana',
+        nascimento: '14/03/1992',
+        batismo: '20/10/2015',
+        telefone: '(31) 99123-4567',
+        localidade: 'Betim - MG',
+        validade: '20/10/2027',
+        status: 'GERADA',
+        corStatus: 'bg-blue-500/20 text-blue-300 border-blue-400/30'
+      },
+      {
+        id: '3',
+        protocolo: 'MEM-202611-1B88',
+        nome: 'Marcos Vinicius Santos',
+        cargo: 'Presbítero',
+        congregacao: 'Contagem Leste',
+        superintendencia: 'Região Metropolitana',
+        nascimento: '05/11/1985',
+        batismo: '12/07/2008',
+        telefone: '(31) 98888-2233',
+        localidade: 'Contagem - MG',
+        validade: '12/07/2028',
+        status: 'IMPRESSA',
+        corStatus: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+      },
+      {
+        id: '4',
+        protocolo: 'MEM-202611-3E55',
+        nome: 'Débora Cristina Lima',
+        cargo: 'Membro Ativo',
+        congregacao: 'Santa Luzia Norte',
+        superintendencia: 'Região Metropolitana',
+        nascimento: '29/01/1996',
+        batismo: '18/09/2018',
+        telefone: '(31) 97777-6655',
+        localidade: 'Santa Luzia - MG',
+        validade: '18/09/2028',
+        status: 'IMPRESSA',
+        corStatus: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+      }
+    ];
+
+    let membroSelecionado = listaMembros[0];
+
+    function renderizarTabelaMembros() {
+      const tbody = document.getElementById('tabela-membros-corpo');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      listaMembros.forEach(m => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-white/5 transition cursor-pointer";
+        tr.innerHTML = `
+          <td class="py-3.5 px-4 font-mono text-xs text-blue-300">${m.protocolo}</td>
+          <td class="py-3.5 px-4 font-bold text-white">${m.nome}</td>
+          <td class="py-3.5 px-4 text-emerald-300 font-semibold">${m.cargo}</td>
+          <td class="py-3.5 px-4 text-white/70">${m.congregacao}</td>
+          <td class="py-3.5 px-4"><span class="px-2.5 py-1 rounded-full text-xs font-bold border ${m.corStatus}">${m.status}</span></td>
+          <td class="py-3.5 px-4 text-right">
+            <button onclick="selecionarMembroEEmitir('${m.id}')" class="px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white text-xs font-bold rounded-lg shadow border border-white/20 transition-all">
+              Emitir Credencial 🪪
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function selecionarMembroEEmitir(idMembro) {
+      const membro = listaMembros.find(m => m.id === idMembro);
+      if (!membro) return;
+
+      membroSelecionado = membro;
+
+      // 1. Atualizar dados no Cartão Frente
+      document.getElementById('card-frente-nome').textContent = membro.nome;
+      document.getElementById('card-frente-cargo').textContent = membro.cargo;
+      document.getElementById('card-frente-cong').textContent = membro.congregacao;
+      document.getElementById('card-frente-sup').textContent = membro.superintendencia;
+      document.getElementById('card-frente-batismo').textContent = 'Batismo: ' + membro.batismo;
+      document.getElementById('card-frente-validade').textContent = 'Validade: ' + membro.validade;
+
+      // 2. Atualizar dados no Cartão Verso
+      document.getElementById('card-verso-nasc').textContent = membro.nascimento;
+      document.getElementById('card-verso-tel').textContent = membro.telefone;
+      document.getElementById('card-verso-loc').textContent = membro.localidade;
+      document.getElementById('card-verso-protocolo').textContent = 'PROTOCOLO: ' + membro.protocolo;
+
+      // 3. Atualizar e Regenerar o QR Code com a URL específica daquele membro
+      renderizarQrCodeReal(membro.protocolo);
+
+      // 4. Redirecionar para a aba da credencial
+      trocarAba('credencial');
+    }
+
+    function renderizarQrCodeReal(protocolo) {
+      const proto = protocolo || (membroSelecionado ? membroSelecionado.protocolo : 'MEM-202611-OBPC-MG');
+      const container = document.getElementById('qrcode-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      // URL de validação pública oficial com o protocolo exclusivo do membro selecionado
+      const dadosValidacao = "https://obpc-mg.org.br/validar/" + proto;
+
+      if (typeof QRCode !== 'undefined') {
+        try {
+          new QRCode(container, {
+            text: dadosValidacao,
+            width: 72,
+            height: 72,
+            colorDark: "#0f172a",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+          });
+          return;
+        } catch (e) {
+          console.warn('Fallback para imagem de QR Code...', e);
+        }
+      }
+
+      const qrImg = document.createElement('img');
+      qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(dadosValidacao);
+      qrImg.alt = "QR Code Oficial";
+      qrImg.className = "w-full h-full object-contain";
+      container.appendChild(qrImg);
+    }
+
+    function cadastrarNovoMembroPwa(e) {
+      e.preventDefault();
+
+      const nome = document.getElementById('pwa-nome').value.trim();
+      const rawNasc = document.getElementById('pwa-nascimento').value;
+      const rawBat = document.getElementById('pwa-batismo').value;
+      const cargo = document.getElementById('pwa-cargo').value;
+      const telefone = document.getElementById('pwa-telefone').value.trim();
+      const congregacao = document.getElementById('pwa-congregacao').value.trim();
+      const localidade = document.getElementById('pwa-localidade').value.trim();
+
+      // Formatar datas para DD/MM/AAAA
+      const formatarData = (dStr) => {
+        if (!dStr) return '';
+        const partes = dStr.split('-');
+        if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        return dStr;
+      };
+
+      // Gerar protocolo aleatório único
+      const randomHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const protocolo = `MEM-202611-${randomHex}`;
+      const id = Date.now().toString();
+
+      const novoMembro = {
+        id,
+        protocolo,
+        nome,
+        cargo,
+        congregacao,
+        superintendencia: 'Região Estadual',
+        nascimento: formatarData(rawNasc),
+        batismo: formatarData(rawBat),
+        telefone,
+        localidade,
+        validade: '15/11/2028',
+        status: 'PENDENTE',
+        corStatus: 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+      };
+
+      // Adiciona o novo membro no topo da lista da sessão
+      listaMembros.unshift(novoMembro);
+
+      // Atualiza a tabela do painel
+      renderizarTabelaMembros();
+
+      // Se o usuário não estiver logado, autentica na demonstração para poder ver o painel
+      if (!usuarioAutenticado) {
+        usuarioAutenticado = true;
+        document.getElementById('nav-deslogado').classList.add('hidden');
+        document.getElementById('nav-logado').classList.remove('hidden');
+        document.getElementById('faixa-publica').classList.add('hidden');
+      }
+
+      alert(`✅ Sucesso! O membro ${nome} foi cadastrado com o protocolo ${protocolo} e adicionado à lista de membros. Redirecionando para emitir a credencial...`);
+
+      // Seleciona imediatamente o membro novo e exibe sua credencial com QR Code
+      selecionarMembroEEmitir(id);
+    }
+
+    function trocarAba(nomeAba) {
+      // Regra de Proteção: Não permite acessar Dashboard ou Credencial sem estar logado
+      if (!usuarioAutenticado && (nomeAba === 'dashboard' || nomeAba === 'credencial')) {
+        alert('Acesso negado: Você precisa efetuar o login com sucesso primeiro.');
+        trocarAba('login');
+        return;
+      }
+
+      abas.forEach(a => {
+        const sec = document.getElementById('view-' + a);
+        const btn = document.getElementById('btn-tab-' + a);
+        if (a === nomeAba) {
+          sec.classList.remove('hidden');
+          if (btn) {
+            btn.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition bg-blue-600/40 text-white border border-blue-400/40 shadow-sm backdrop-blur-md";
+          }
+          if (nomeAba === 'credencial') {
+            setTimeout(renderizarQrCodeReal, 50);
+          }
+        } else {
+          sec.classList.add('hidden');
+          if (btn) {
+            btn.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-white/5 border border-transparent";
+          }
+        }
+      });
+    }
+
+    function fazerLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      const senha = document.getElementById('login-senha').value.trim();
+      const erroBox = document.getElementById('login-erro');
+
+      // Validação das credenciais
+      if ((email === 'admin@igreja.org.br' || email === 'secretaria@obpc-mg.org.br') && senha === 'Admin@123456') {
+        usuarioAutenticado = true;
+        erroBox.classList.add('hidden');
+
+        // Alterna a barra de navegação para exibir os menus liberados
+        document.getElementById('nav-deslogado').classList.add('hidden');
+        document.getElementById('nav-logado').classList.remove('hidden');
+        document.getElementById('faixa-publica').classList.add('hidden');
+
+        // Redireciona para o Dashboard
+        trocarAba('dashboard');
+      } else {
+        erroBox.classList.remove('hidden');
+      }
+    }
+
+    function fazerLogout() {
+      usuarioAutenticado = false;
+      document.getElementById('nav-deslogado').classList.remove('hidden');
+      document.getElementById('nav-logado').classList.add('hidden');
+      document.getElementById('faixa-publica').classList.remove('hidden');
+      trocarAba('login');
+    }
+
+    function abrirFormularioPublico() {
+      document.getElementById('btn-voltar-login-pwa').classList.remove('hidden');
+      trocarAba('pwa');
+    }
+
+    // Renderizar ao carregar a página
+    window.addEventListener('DOMContentLoaded', () => {
+      renderizarTabelaMembros();
+      renderizarQrCodeReal();
+    });
+  </script>
+</body>
+</html>
